@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>App</string>
+	<string>Firebase Chat</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -35,7 +35,7 @@
 		<true/>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Ứng dụng cần vị trí hiện tại để hiển thị dự báo thời tiết chính xác cho khu vực của bạn.</string>
+	<string>Ứng dụng cần quyền truy cập vị trí để hiển thị tọa độ GPS hiện tại của thiết bị trong phần Cài đặt.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>

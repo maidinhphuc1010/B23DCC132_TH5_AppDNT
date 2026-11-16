@@ -1,10 +1,4 @@
 {
-  "expo": {
-    "name": "StudyManager",
-    "slug": "study-manager",
-    "version": "1.0.0",
-    "android": {
-      "package": "com.app"
-    }
-  }
+  "name": "App",
+  "displayName": "Firebase Chat"
 }

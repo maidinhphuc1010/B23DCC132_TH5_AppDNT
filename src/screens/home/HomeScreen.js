@@ -1,90 +1,148 @@
-import React from 'react';
-import { Text, StyleSheet } from 'react-native';
-import ScreenContainer from '../../components/common/ScreenContainer';
-import QueryStatus from '../../components/common/QueryStatus';
-import EmptyState from '../../components/common/EmptyState';
-import ErrorView from '../../components/common/ErrorView';
-import CourseCard from '../../components/course/CourseCard';
-import AssignmentItem from '../../components/assignment/AssignmentItem';
-import InfoRow from '../../components/profile/InfoRow';
-import { useAppData } from '../../context/AppDataContext';
-import { useSync } from '../../context/SyncContext';
-import { useMutation } from '../../hooks/useMutation';
+import React, { useEffect, useMemo, useState } from 'react';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ConversationItem } from '../../components/chat/ConversationItem';
+import { EmptyState } from '../../components/common/EmptyState';
+import { LoadingView } from '../../components/common/LoadingView';
+import { useAuth } from '../../context/AuthContext';
 import { ROUTES } from '../../navigation/routes';
-import colors from '../../theme/colors';
-import spacing from '../../theme/spacing';
-import typography from '../../theme/typography';
+import { subscribeConversations } from '../../services/chatService';
+import { colors, radius, spacing, typography } from '../../theme';
 
-/** @param {{navigation: object}} props */
-export default function HomeScreen({ navigation }) {
-  const { student, courses, assignments, saveAssignment, mutationWarning } =
-    useAppData();
-  const { pendingCount, error, refreshPending } = useSync();
-  const mutation = useMutation();
-  const now = Date.now();
-  const upcoming = (assignments.data || []).filter(
-    item =>
-      item.status !== 'done' &&
-      Date.parse(item.dueDate) >= now &&
-      Date.parse(item.dueDate) <= now + 7 * 86400000,
+export const HomeScreen = ({ navigation }) => {
+  const { user } = useAuth();
+  const [conversations, setConversations] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setConversations([]);
+      setLoading(false);
+      return undefined;
+    }
+
+    setLoading(true);
+    const unsubscribe = subscribeConversations(
+      user.uid,
+      nextList => {
+        setConversations(nextList);
+        setLoading(false);
+      },
+      () => {
+        setLoading(false);
+      },
+    );
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, [user?.uid]);
+
+  const totalUnread = useMemo(
+    () =>
+      conversations.reduce(
+        (sum, conv) => sum + (Number(conv.unreadCount) || 0),
+        0,
+      ),
+    [conversations],
   );
+
+  const handleOpenChat = item => {
+    navigation.navigate(ROUTES.CHAT, {
+      chatId: item.chatId,
+      receiverId: item.receiverId,
+      receiverName: item.receiverName,
+      receiverAvatar: item.receiverAvatar,
+      receiverEmail: item.receiverEmail,
+    });
+  };
+
   return (
-    <ScreenContainer scroll>
-      <Text style={styles.title}>Tổng quan học tập</Text>
-      <QueryStatus query={student} />
-      <InfoRow label="Họ tên" value={student.data?.fullName} />
-      <InfoRow label="Mã sinh viên" value={student.data?.studentCode} />
-      <InfoRow label="Thay đổi chưa đồng bộ" value={pendingCount} />
-      {error ? (
-        <ErrorView message={error.message} onRetry={refreshPending} />
-      ) : null}
-      {mutationWarning ? (
-        <Text style={styles.warning}>{mutationWarning}</Text>
-      ) : null}
-      <Text style={styles.heading}>Môn đang học</Text>
-      <QueryStatus query={courses} />
-      {(courses.data || []).map(course => (
-        <CourseCard
-          key={course.id}
-          course={course}
-          onPress={() =>
-            navigation.navigate(ROUTES.CourseDetail, { id: course.id })
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerTitle}>Tin nhắn</Text>
+          <Text style={styles.headerSubtitle}>
+            Trò chuyện thời gian thực với bạn bè
+          </Text>
+        </View>
+        {totalUnread > 0 ? (
+          <View style={styles.unreadSummaryChip}>
+            <Text style={styles.unreadSummaryText}>
+              {totalUnread} chưa đọc
+            </Text>
+          </View>
+        ) : null}
+      </View>
+
+      {loading ? (
+        <LoadingView message="Đang đồng bộ cuộc trò chuyện..." />
+      ) : (
+        <FlatList
+          data={conversations}
+          keyExtractor={item => item.chatId}
+          renderItem={({ item }) => (
+            <ConversationItem
+              item={item}
+              currentUid={user?.uid}
+              onPress={handleOpenChat}
+            />
+          )}
+          contentContainerStyle={
+            conversations.length === 0 ? styles.emptyListContent : undefined
+          }
+          ListEmptyComponent={
+            <EmptyState
+              icon="💬"
+              title="Chưa có cuộc trò chuyện nào"
+              description="Hãy chuyển sang tab Danh bạ để tìm người dùng và bắt đầu nhắn tin."
+              actionLabel="Mở Danh bạ"
+              onAction={() => navigation.navigate(ROUTES.CONTACTS_TAB)}
+            />
           }
         />
-      ))}
-      <Text style={styles.heading}>Bài tập đến hạn trong 7 ngày</Text>
-      <QueryStatus query={assignments} />
-      {mutation.error ? (
-        <ErrorView message={mutation.error} onRetry={assignments.refresh} />
-      ) : null}
-      {upcoming.length ? (
-        upcoming.map(assignment => (
-          <AssignmentItem
-            key={assignment.id}
-            assignment={assignment}
-            pending={!!assignment.pending}
-            onPress={() =>
-              navigation.navigate(ROUTES.AssignmentDetail, {
-                id: assignment.id,
-              })
-            }
-            onToggleStatus={status =>
-              mutation.run(() => saveAssignment({ status }, assignment.id))
-            }
-          />
-        ))
-      ) : (
-        <EmptyState title="Không có bài tập sắp đến hạn" />
       )}
-    </ScreenContainer>
+    </SafeAreaView>
   );
-}
+};
+
 const styles = StyleSheet.create({
-  title: { ...typography.title, color: colors.text },
-  heading: { ...typography.h3, color: colors.text, marginTop: spacing.lg },
-  warning: {
-    ...typography.body,
-    color: colors.warning,
-    marginVertical: spacing.sm,
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  headerTitle: {
+    ...typography.h2,
+    color: colors.textPrimary,
+  },
+  headerSubtitle: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  unreadSummaryChip: {
+    backgroundColor: colors.dangerLight,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.pill,
+  },
+  unreadSummaryText: {
+    ...typography.captionBold,
+    color: colors.dangerText,
+  },
+  emptyListContent: {
+    flexGrow: 1,
   },
 });

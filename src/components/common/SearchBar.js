@@ -1,59 +1,81 @@
 import React from 'react';
-import { View, TextInput, Pressable, Text, StyleSheet } from 'react-native';
-import colors from '../../theme/colors';
-import spacing from '../../theme/spacing';
-import typography from '../../theme/typography';
+import {
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { colors, radius, spacing, typography } from '../../theme';
 
-/** @param {{value: string, onChangeText: Function, placeholder?: string}} props */
-export default function SearchBar({
+export const SearchBar = ({
   value,
   onChangeText,
-  placeholder = 'Tìm kiếm',
-}) {
+  placeholder = 'Tìm kiếm theo tên hoặc email...',
+  testID = 'contacts-search-input',
+}) => {
   return (
-    <View style={styles.row}>
+    <View style={styles.container}>
+      <Text style={styles.searchIcon}>⌕</Text>
       <TextInput
-        accessibilityLabel={placeholder}
-        placeholder={placeholder}
-        placeholderTextColor={colors.textMuted}
+        testID={testID}
+        style={styles.input}
         value={value}
         onChangeText={onChangeText}
-        style={styles.input}
+        placeholder={placeholder}
+        placeholderTextColor={colors.textMuted}
+        autoCapitalize="none"
+        autoCorrect={false}
+        returnKeyType="search"
       />
       {value ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Xóa tìm kiếm"
+        <TouchableOpacity
+          testID="clear-search-button"
+          activeOpacity={0.7}
           onPress={() => onChangeText('')}
-          style={styles.clear}
-        >
-          <Text style={styles.text}>✕</Text>
-        </Pressable>
+          style={styles.clearBtn}>
+          <Text style={styles.clearText}>✕</Text>
+        </TouchableOpacity>
       ) : null}
     </View>
   );
-}
+};
+
 const styles = StyleSheet.create({
-  row: {
+  container: {
     flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: spacing.sm,
-    backgroundColor: colors.surface,
-    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    minHeight: 46,
+  },
+  searchIcon: {
+    fontSize: 20,
+    color: colors.textMuted,
+    marginRight: spacing.sm,
+    lineHeight: 22,
   },
   input: {
-    ...typography.body,
-    color: colors.text,
     flex: 1,
-    minHeight: spacing.touch,
-    paddingHorizontal: spacing.md,
+    ...typography.body,
+    color: colors.textPrimary,
+    paddingVertical: spacing.sm,
   },
-  clear: {
-    minWidth: spacing.touch,
-    minHeight: spacing.touch,
+  clearBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: spacing.xs,
   },
-  text: { ...typography.body, color: colors.primary },
+  clearText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '700',
+  },
 });

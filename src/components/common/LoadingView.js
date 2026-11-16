@@ -1,22 +1,28 @@
 import React from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
-import colors from '../../theme/colors';
-import spacing from '../../theme/spacing';
-import typography from '../../theme/typography';
-export default function LoadingView({ message = 'Đang tải...' }) {
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { colors, spacing, typography } from '../../theme';
+
+export const LoadingView = ({ message = 'Đang tải dữ liệu...' }) => {
   return (
     <View style={styles.container}>
-      <ActivityIndicator accessibilityLabel={message} color={colors.primary} />
-      <Text style={styles.text}>{message}</Text>
+      <ActivityIndicator size="large" color={colors.primary} />
+      {message ? <Text style={styles.message}>{message}</Text> : null}
     </View>
   );
-}
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.xl,
   },
-  text: { ...typography.body, color: colors.textMuted, marginTop: spacing.sm },
+  message: {
+    ...typography.bodyMedium,
+    color: colors.textSecondary,
+    marginTop: spacing.md,
+    textAlign: 'center',
+  },
 });

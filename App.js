@@ -1,16 +1,19 @@
-﻿import React from 'react';
+import React from 'react';
+import { StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import AppNavigator from './src/navigation/AppNavigator';
-import OfflineAppDataProvider from './src/context/OfflineAppDataProvider';
-import SyncProvider from './src/context/SyncContext';
-export default function App() {
+import { AuthProvider } from './src/context/AuthContext';
+import { AppNavigator } from './src/navigation/AppNavigator';
+import { colors } from './src/theme';
+
+const App = () => {
   return (
     <SafeAreaProvider>
-      <SyncProvider>
-        <OfflineAppDataProvider>
-          <AppNavigator />
-        </OfflineAppDataProvider>
-      </SyncProvider>
+      <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+      <AuthProvider>
+        <AppNavigator />
+      </AuthProvider>
     </SafeAreaProvider>
   );
-}
+};
+
+export default App;

@@ -1,79 +1,139 @@
-# StudyManager — Thực hành 4: API và Offline Mode
+# Bài Thực Hành 5: Ứng Dụng Chat 1-1 Realtime Với Firebase (React Native CLI)
 
-Ứng dụng React Native/Expo quản lý môn học, lịch, bài tập, hồ sơ và kết quả học tập qua REST API json-server; hỗ trợ cache và thao tác offline.
+Ứng dụng nhắn tin 1-1 thời gian thực xây dựng trên nền tảng **React Native CLI thuần (0.81.5)** tích hợp **Firebase Modular JS SDK v11** (`firebase/app`, `firebase/auth`, `firebase/database`), lưu phiên đăng nhập tự động với `AsyncStorage`, theo dõi trạng thái trực tuyến (`Online/Offline`) thời gian thực và định vị thiết bị GPS qua `@react-native-community/geolocation`.
 
-## Công nghệ
-React Native 0.81, Expo SDK 54, JavaScript/JSX, React Navigation, NetInfo, AsyncStorage, Fetch API, json-server, Jest, React Test Renderer, ESLint.
+---
 
-## Cấu trúc thư mục
+## 1. Tính Năng Chính
+
+- **Xác thực người dùng (Firebase Authentication)**:
+  - Đăng ký tài khoản mới (`Họ và tên`, `Email`, `Mật khẩu`, `Nhập lại mật khẩu`) với kiểm tra hợp lệ từng trường và lưu hồ sơ vào `users/{uid}`.
+  - Đăng nhập Email/Password kèm thông báo lỗi tiếng Việt chi tiết.
+  - Lưu phiên tự động qua `getReactNativePersistence(AsyncStorage)` — mở lại ứng dụng vào thẳng màn hình chính.
+  - Đăng xuất an toàn: tự động cập nhật `online: false` và `lastSeen` trước khi `signOut`.
+- **Trạng thái hoạt động thời gian thực (Realtime Presence)**:
+  - Lắng nghe `.info/connected`, đăng ký `onDisconnect().update({ online: false, lastSeen: serverTimestamp() })` và đồng bộ theo vòng đời `AppState` (`active` / `background`).
+- **Danh bạ & Tìm kiếm liên hệ**:
+  - Hiển thị toàn bộ người dùng khác trên hệ thống (loại trừ bản thân), ưu tiên người đang Online lên đầu.
+  - Tìm kiếm tức thì theo họ tên (hỗ trợ cả có dấu và không dấu) hoặc địa chỉ email.
+- **Nhắn tin 1-1 Realtime & Đếm tin chưa đọc**:
+  - Định danh phòng chat duy nhất theo cặp UID: `[uid1, uid2].sort().join('_')`.
+  - Ghi nguyên tử đa đường dẫn (`update(ref(db), updates)`) đồng thời vào `messages/{chatId}` và `conversations/{chatId}` kèm `increment(1)` cho số tin chưa đọc của người nhận.
+  - Tự động cuộn xuống tin nhắn mới nhất, chặn gửi tin nhắn rỗng/khoảng trắng, và đưa `unreadCount` về `0` ngay khi mở phòng chat.
+- **Cài đặt & Định vị GPS**:
+  - Hiển thị hồ sơ cá nhân đang đăng nhập, xin quyền vị trí runtime (Android/iOS) và lấy tọa độ GPS thực tế (`Latitude`, `Longitude`, `Accuracy`).
+
+---
+
+## 2. Kiến Trúc Thư Mục
+
+Toàn bộ lệnh gọi Firebase và GPS được đóng gói 100% bên trong tầng `src/services/` (không có màn hình hay component nào gọi trực tiếp SDK):
+
 ```text
-StudyManager/ App.js db.json README.md
-src/{api,components,context,data,hooks,navigation,screens,storage,theme,types,utils}/
+├── __mocks__/
+│   └── @env.js                    # Biến môi trường giả lập cho Jest
+├── __tests__/                     # Bộ kiểm thử đơn vị & kiến trúc (Jest)
+├── android/                       # Mã nguồn native Android (React Native CLI)
+├── ios/                           # Mã nguồn native iOS (React Native CLI)
+├── src/
+│   ├── components/
+│   │   ├── chat/                  # ConversationItem, ContactItem, MessageBubble, ChatInputBar
+│   │   └── common/                # Avatar, AppInput, AppButton, SearchBar, EmptyState, LoadingView, TabIcon
+│   ├── context/
+│   │   └── AuthContext.js         # Quản lý phiên đăng nhập & kích hoạt Presence
+│   ├── navigation/
+│   │   ├── routes.js              # Hằng số tên màn hình
+│   │   ├── AuthStack.js           # Luồng Đăng nhập / Đăng ký
+│   │   ├── MainTabNavigator.js    # Bottom Tabs: Home, Danh bạ, Thông báo, Cài đặt
+│   │   └── AppNavigator.js        # Điều hướng gốc theo trạng thái xác thực
+│   ├── screens/
+│   │   ├── auth/                  # LoginScreen, RegisterScreen
+│   │   ├── home/                  # HomeScreen (Danh sách cuộc trò chuyện)
+│   │   ├── contacts/              # ContactsScreen (Danh bạ & tìm kiếm)
+│   │   ├── chat/                  # ChatScreen (Phòng chat 1-1 realtime)
+│   │   ├── notifications/         # NotificationScreen (Thông báo tin chưa đọc)
+│   │   └── settings/              # SettingsScreen (Hồ sơ, định vị GPS, đăng xuất)
+│   ├── services/
+│   │   ├── firebaseConfig.js      # Khởi tạo Firebase App, Auth (AsyncStorage), Database
+│   │   ├── authService.js         # Đăng ký, đăng nhập, đăng xuất, mapAuthError tiếng Việt
+│   │   ├── presenceService.js     # Đồng bộ Online/Offline & onDisconnect
+│   │   ├── userService.js         # Lắng nghe & tìm kiếm Danh bạ
+│   │   ├── chatService.js         # Gửi/nhận tin nhắn, cuộc trò chuyện & unreadCount
+│   │   └── locationService.js     # Xin quyền & đọc tọa độ GPS hiện tại
+│   ├── theme/                     # Hệ thống màu sắc, khoảng cách, kiểu chữ
+│   └── utils/                     # Kiểm tra dữ liệu đầu vào & định dạng thời gian
+├── .env.example                   # Mẫu biến môi trường Firebase
+├── database.rules.json            # Quy tắc bảo mật & chỉ mục Realtime Database
+├── App.js
+└── index.js
 ```
-`api/`: request và endpoint services; `components/`: common/assignment/course/grade/profile/schedule; `context/`: AppDataContext, OfflineAppDataProvider, SyncContext; `hooks/`: network/cache/outbox/mutation; `screens/`: home/courses/schedule/assignments/profile; `storage/`: AsyncStorage cache/outbox. Entry App.js dùng navigation/provider trong src; mã HomeScreen.js và TypeScript cũ được giữ tương thích bài trước.
 
-## Cài đặt, chạy Expo và json-server
-Yêu cầu Node phù hợp Expo SDK 54 (>=20.19.4, khuyến nghị Node 22 LTS), npm, Android Emulator hoặc Expo Go tương thích SDK.
-```powershell
+---
+
+## 3. Hướng Dẫn Thiết Lập Firebase
+
+### Bước 1: Tạo Firebase Project & Web App
+1. Truy cập [Firebase Console](https://console.firebase.google.com/) và nhấn **Create a project**.
+2. Tại trang tổng quan dự án, chọn biểu tượng **Web (`</>`)** để đăng ký ứng dụng mới (ví dụ: `firebase-chat-rn`).
+3. Sao chép các giá trị trong đối tượng `firebaseConfig`.
+
+### Bước 2: Bật Email/Password Authentication
+1. Vào menu **Build -> Authentication -> Get started**.
+2. Chọn tab **Sign-in method**, nhấp vào **Email/Password**, bật công tắc **Enable** và nhấn **Save**.
+
+### Bước 3: Tạo Realtime Database & Nạp Security Rules
+1. Vào menu **Build -> Realtime Database -> Create Database**.
+2. Chọn vùng máy chủ (khuyến nghị `us-central1` hoặc `asia-southeast1`), hoàn tất khởi tạo và sao chép đường dẫn URL của Database (ví dụ: `https://ten-project-default-rtdb.firebaseio.com`).
+3. Chuyển sang tab **Rules**, sao chép toàn bộ nội dung từ tệp [`database.rules.json`](./database.rules.json) dán vào trình soạn thảo và nhấn **Publish**.
+
+### Bước 4: Cấu hình tệp `.env`
+Sao chép `.env.example` thành `.env` (nếu chưa có) và điền thông số thực tế từ Firebase Console:
+
+```env
+FIREBASE_API_KEY=AIzaSy...
+FIREBASE_AUTH_DOMAIN=ten-project.firebaseapp.com
+FIREBASE_DATABASE_URL=https://ten-project-default-rtdb.firebaseio.com
+FIREBASE_PROJECT_ID=ten-project
+FIREBASE_STORAGE_BUCKET=ten-project.firebasestorage.app
+FIREBASE_MESSAGING_SENDER_ID=123456789012
+FIREBASE_APP_ID=1:123456789012:web:abcdef1234567890
+```
+
+> **Lưu ý**: Tệp `.env` đã được đưa vào `.gitignore` để bảo mật khóa API. Mỗi khi chỉnh sửa `.env`, hãy khởi động lại Metro với cờ `--reset-cache`.
+
+---
+
+## 4. Cài Đặt & Khởi Chạy Ứng Dụng
+
+### Yêu cầu môi trường
+- **Node.js** >= 20
+- **JDK 17** & **Android Studio** (Android SDK + máy ảo AVD hoặc thiết bị thật bật USB Debugging)
+- Trên macOS (nếu chạy iOS): **Xcode** & **CocoaPods**
+
+### Các lệnh thực thi
+```bash
+# 1. Cài đặt các gói phụ thuộc
 npm install
-# terminal 1
-npm run api
-# terminal 2
-npm start
+
+# 2. Khởi chạy Metro Bundler (xóa cache biến môi trường cũ nếu vừa sửa .env)
+npm start -- --reset-cache
+
+# 3. Build và chạy trên Android (mở ở cửa sổ terminal thứ 2)
+npm run android
+
+# 4. Build và chạy trên iOS (chỉ dành cho macOS)
+cd ios && pod install && cd ..
+npm run ios
 ```
-Quét QR hoặc nhấn `a` mở emulator. Android Emulator mặc định dùng `http://10.0.2.2:3000`. Điện thoại thật và máy tính phải cùng Wi-Fi; lấy IPv4 bằng `ipconfig`, cho phép Node/port 3000 qua firewall. Trước Expo đặt IP LAN thật:
-```powershell
-$env:EXPO_PUBLIC_API_URL = 'http://192.168.1.10:3000'
-npm start -- --clear
-```
-Không dùng localhost trên điện thoại. Server dừng sẽ hiện lỗi/nút Thử lại, không dùng dữ liệu giả.
 
-## Sử dụng
-Năm tab: Tổng quan, Môn học, Lịch học, Bài tập, Cá nhân. Tìm/lọc môn, chọn ngày, thêm bài tập/đổi trạng thái/xem chi tiết, sửa hồ sơ, xem GPA và điểm. Kéo danh sách để refresh. GPA trọng số tín chỉ; F bằng 0 điểm trong mẫu số, không cộng tín chỉ tích lũy.
+---
 
-## Kiến trúc, cache và offline
-```text
-Màn hình → Hook → Service → request → API
-                 ↘ Context điều phối ↔ Cache / Outbox (AsyncStorage)
-GET: useCachedQuery đọc cache → render ngay → Service/API revalidate
-Ghi offline: Screen → Context → Outbox + cache/override → auto sync → API
-```
-AppDataContext forward tới OfflineAppDataProvider. Hook/context điều phối cache/outbox; service chỉ gọi request, không tự đọc AsyncStorage. useCachedQuery cache-first, cập nhật savedAt. NetInfo điều khiển banner **Bạn đang offline**. Cache còn dùng được kèm thời gian cập nhật cuối; cache trống thì lỗi có Thử lại, không crash. Thao tác bài tập và hồ sơ offline được lưu bền vững trong outbox, UI cập nhật ngay, bài tập hiện **Chưa đồng bộ**. Reconnect xử lý FIFO, cập nhật API/cache, xóa action thành công và báo số thay đổi; lỗi mạng giữ action để thử lại.
+## 5. Kiểm Tra Mã Nguồn & Chạy Kiểm Thử Tự Động
 
-## Xung đột B5
-PATCH offline lưu `baseUpdatedAt`. Khi sync, GET phiên bản server trước PATCH; nếu `server.updatedAt` mới hơn base, không gửi PATCH, bỏ action xung đột khỏi outbox, cache bản server và báo người dùng. Nếu server không mới hơn thì gửi PATCH. Server thắng; muốn giữ nội dung local sau conflict cần sửa/lưu lại. updatedAt cần là ISO timestamp hợp lệ.
-
-## Đối chiếu thang điểm
-- **A — API (4):** BASE_URL/TIMEOUT, service/request, GET/POST/PATCH, loading/error/retry, validation, optimistic status, refresh, chi tiết và quan hệ.
-- **B — Offline (4):** B1 NetInfo/banner; B2 cache-first/savedAt; B3 outbox/UI lạc quan; B4 reconnect sync; B5 server-wins updatedAt/thông báo.
-- **C — Kết quả học tập (1):** học kỳ, chi tiết điểm, GPA quy đổi/trọng số tín chỉ.
-- **D — Mã nguồn (1):** cấu trúc mục 5, phân tầng, component trình bày, theme, accessibility, EmptyState.
-
-## Kiểm tra tự động
-```powershell
-npm test -- --runInBand
+```bash
+# Kiểm tra quy chuẩn mã nguồn ESLint
 npm run lint
-npx expo export --platform android
-git diff --check
+
+# Chạy toàn bộ bộ kiểm thử Jest
+npm test
 ```
-Mock tests không thay kiểm thử thiết bị/REST thật.
-
-## GitHub và video bài nộp
-Push repository GitHub, nộp link public hoặc cấp quyền giảng viên; đảm bảo có `db.json`, `README.md`, source và không có secret. Quay MP4 3–5 phút; không ghi PASS kịch bản chưa chạy thật.
-
-### Video demo đề xuất (4:30)
-| Thời gian | Cảnh quay |
-|---|---|
-| 0:00–0:20 | Giới thiệu, tab, Expo và json-server. |
-| 0:20–0:45 | **1:** dừng server, app chưa cache; lỗi, Thử lại, không crash. |
-| 0:45–1:10 | **2:** tải cache, airplane mode/restart; banner và thời gian. |
-| 1:10–1:50 | **3:** offline hoàn thành 2 bài, thêm bài; nhãn chưa đồng bộ. |
-| 1:50–2:20 | **4:** reconnect; thông báo, badge mất, db.json đổi. |
-| 2:20–3:05 | **5:** offline sửa tên; db.json sửa tên và updatedAt mới hơn; reconnect, server thắng. |
-| 3:05–3:30 | **6:** tìm môn không tồn tại/lọc rỗng; EmptyState. |
-| 3:30–4:00 | **7:** pull-to-refresh và indicator. |
-| 4:00–4:30 | GPA/chi tiết điểm, GitHub/README, kết luận. |
-
-Giữ terminal/db.json đọc được, thao tác airplane mode trực tiếp; tải link Drive/YouTube không công khai vào bài nộp. Chuẩn bị dữ liệu trước nhưng thể hiện đủ từng thao tác.
-
-Link render:https://b23dcc132-th4-appdnt.onrender.com

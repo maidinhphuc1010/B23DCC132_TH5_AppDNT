@@ -1,71 +1,145 @@
-import React from 'react';
-import { Button } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { useNavigation } from '@react-navigation/native';
-import { HomeScreen } from '../screens/HomeScreen';
-import {
-  SubjectsScreen,
-  ScheduleScreen,
-  AssignmentsScreen,
-  ResultsScreen,
-} from '../screens/LearningScreens';
-import { theme } from '../theme';
+import { TabIcon } from '../components/common/TabIcon';
+import { useAuth } from '../context/AuthContext';
+import { ContactsScreen } from '../screens/contacts/ContactsScreen';
+import { HomeScreen } from '../screens/home/HomeScreen';
+import { NotificationScreen } from '../screens/notifications/NotificationScreen';
+import { SettingsScreen } from '../screens/settings/SettingsScreen';
+import { subscribeConversations } from '../services/chatService';
+import { colors } from '../theme';
+import { ROUTES } from './routes';
+
 const Tab = createBottomTabNavigator();
-function ProfileButton() {
-  const navigation = useNavigation();
-  return (
-    <Button
-      title="Hồ sơ"
-      color={theme.colors.primary}
-      onPress={() => navigation.navigate('StudentProfile')}
-    />
+
+const renderHomeTabIcon = ({ focused }) => (
+  <TabIcon name="home" focused={focused} />
+);
+
+const renderContactsTabIcon = ({ focused }) => (
+  <TabIcon name="contacts" focused={focused} />
+);
+
+const renderNotificationsTabIcon = ({ focused }) => (
+  <TabIcon name="notifications" focused={focused} />
+);
+
+const renderSettingsTabIcon = ({ focused }) => (
+  <TabIcon name="settings" focused={focused} />
+);
+
+export const MainTabNavigator = () => {
+  const { user } = useAuth();
+  const [conversations, setConversations] = useState([]);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setConversations([]);
+      return undefined;
+    }
+
+    const unsubscribe = subscribeConversations(user.uid, nextList => {
+      setConversations(nextList);
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, [user?.uid]);
+
+  const totalUnreadMessages = useMemo(
+    () =>
+      conversations.reduce(
+        (sum, item) => sum + (Number(item.unreadCount) || 0),
+        0,
+      ),
+    [conversations],
   );
-}
-export function MainTabNavigator() {
+
+  const unreadThreadsCount = useMemo(
+    () => conversations.filter(item => Number(item.unreadCount) > 0).length,
+    [conversations],
+  );
+
+  const homeBadge =
+    totalUnreadMessages > 0
+      ? totalUnreadMessages > 99
+        ? '99+'
+        : totalUnreadMessages
+      : undefined;
+
+  const notificationBadge =
+    unreadThreadsCount > 0 ? unreadThreadsCount : undefined;
+
   return (
     <Tab.Navigator
-      initialRouteName="Home"
+      initialRouteName={ROUTES.HOME_TAB}
       screenOptions={{
-        headerTintColor: theme.colors.primary,
-        headerStyle: { backgroundColor: theme.colors.surface },
-        tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: theme.colors.textSecondary,
-        tabBarStyle: {
-          backgroundColor: theme.colors.surface,
-          borderTopColor: theme.colors.border,
-        },
-        tabBarIconStyle: { display: 'none' },
-        tabBarLabelStyle: { fontSize: 12 },
-      }}
-    >
+        headerShown: false,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
+        tabBarStyle: styles.tabBar,
+        tabBarLabelStyle: styles.tabBarLabel,
+        tabBarBadgeStyle: styles.badge,
+      }}>
       <Tab.Screen
-        name="Home"
+        name={ROUTES.HOME_TAB}
         component={HomeScreen}
         options={{
-          title: 'Tổng quan',
-          headerRight: ProfileButton,
+          tabBarLabel: 'Home',
+          tabBarIcon: renderHomeTabIcon,
+          tabBarBadge: homeBadge,
         }}
       />
       <Tab.Screen
-        name="Subjects"
-        component={SubjectsScreen}
-        options={{ title: 'Môn học' }}
+        name={ROUTES.CONTACTS_TAB}
+        component={ContactsScreen}
+        options={{
+          tabBarLabel: 'Danh bạ',
+          tabBarIcon: renderContactsTabIcon,
+        }}
       />
       <Tab.Screen
-        name="Schedule"
-        component={ScheduleScreen}
-        options={{ title: 'Lịch học' }}
+        name={ROUTES.NOTIFICATIONS_TAB}
+        component={NotificationScreen}
+        options={{
+          tabBarLabel: 'Thông báo',
+          tabBarIcon: renderNotificationsTabIcon,
+          tabBarBadge: notificationBadge,
+        }}
       />
       <Tab.Screen
-        name="Assignments"
-        component={AssignmentsScreen}
-        options={{ title: 'Bài tập' }}
-      />
-      <Tab.Screen
-        name="Results"
-        component={ResultsScreen}
-        options={{ title: 'Kết quả' }}
+        name={ROUTES.SETTINGS_TAB}
+        component={SettingsScreen}
+        options={{
+          tabBarLabel: 'Cài đặt',
+          tabBarIcon: renderSettingsTabIcon,
+        }}
       />
     </Tab.Navigator>
   );
-}
+};
+
+const styles = StyleSheet.create({
+  tabBar: {
+    backgroundColor: colors.surface,
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    height: 62,
+    paddingTop: 4,
+    paddingBottom: 6,
+  },
+  tabBarLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  badge: {
+    backgroundColor: colors.badge,
+    color: colors.textInverse,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+});

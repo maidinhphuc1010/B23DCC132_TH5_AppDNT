@@ -1,58 +1,91 @@
 import React from 'react';
-import { Pressable, Text, ActivityIndicator, StyleSheet } from 'react-native';
-import colors from '../../theme/colors';
-import spacing from '../../theme/spacing';
-import typography from '../../theme/typography';
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+} from 'react-native';
+import { colors, radius, spacing, typography } from '../../theme';
 
-/** @param {{title: string, onPress: Function, variant?: string, loading?: boolean, disabled?: boolean}} props */
-export default function AppButton({
+export const AppButton = ({
   title,
   onPress,
-  variant = 'primary',
   loading = false,
   disabled = false,
-}) {
-  const outline = variant === 'outline';
+  variant = 'primary',
+  style,
+  testID,
+}) => {
+  const isDisabled = disabled || loading;
+  const variantButtonStyle = styles[`btn_${variant}`] || styles.btn_primary;
+  const variantTextStyle = styles[`text_${variant}`] || styles.text_primary;
+
+  const indicatorColor =
+    variant === 'outline' || variant === 'secondary'
+      ? colors.primary
+      : colors.textInverse;
+
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={title}
-      accessibilityState={{ disabled: disabled || loading, busy: loading }}
-      disabled={disabled || loading}
+    <TouchableOpacity
+      testID={testID}
+      activeOpacity={0.8}
+      disabled={isDisabled}
       onPress={onPress}
       style={[
         styles.button,
-        outline && styles.outline,
-        (disabled || loading) && styles.disabled,
-      ]}
-    >
+        variantButtonStyle,
+        isDisabled && styles.buttonDisabled,
+        style,
+      ]}>
       {loading ? (
-        <ActivityIndicator
-          color={outline ? colors.primary : colors.onPrimary}
-        />
+        <ActivityIndicator size="small" color={indicatorColor} />
       ) : (
-        <Text style={[styles.text, outline && styles.outlineText]}>
-          {title}
-        </Text>
+        <Text style={[styles.text, variantTextStyle]}>{title}</Text>
       )}
-    </Pressable>
+    </TouchableOpacity>
   );
-}
+};
+
 const styles = StyleSheet.create({
   button: {
-    minHeight: spacing.touch,
-    minWidth: spacing.touch,
-    padding: spacing.md,
-    marginVertical: spacing.xs,
-    borderRadius: spacing.sm,
-    backgroundColor: colors.primary,
+    minHeight: 50,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    flexDirection: 'row',
+  },
+  btn_primary: {
+    backgroundColor: colors.primary,
+  },
+  btn_secondary: {
+    backgroundColor: colors.primaryLight,
+  },
+  btn_outline: {
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
     borderColor: colors.primary,
   },
-  outline: { backgroundColor: colors.surface },
-  disabled: { opacity: 0.5 },
-  text: { ...typography.label, color: colors.onPrimary },
-  outlineText: { color: colors.primary },
+  btn_danger: {
+    backgroundColor: colors.danger,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  text: {
+    ...typography.bodyBold,
+  },
+  text_primary: {
+    color: colors.textInverse,
+  },
+  text_secondary: {
+    color: colors.primary,
+  },
+  text_outline: {
+    color: colors.primary,
+  },
+  text_danger: {
+    color: colors.textInverse,
+  },
 });
